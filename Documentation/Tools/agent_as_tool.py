@@ -1,6 +1,6 @@
 #---------------------------- Running Agent ----------------------------
 from agents import (
-    Agent, Runner, function_tool, OpenAIChatCompletionsModel, RunConfig, set_tracing_disabled, FunctionTool, RunContextWrapper
+    Agent, Runner, function_tool, OpenAIChatCompletionsModel, RunConfig, set_tracing_disabled, FunctionTool, RunContextWrapper, RunResult, ToolCallOutputItem
 )
 from openai import AsyncOpenAI
 from openai.types.responses import ResponseTextDeltaEvent
@@ -98,10 +98,25 @@ orchestrator_agent = Agent(
     ]
 )
 
+# ----------------------------- Custom output extraction ----------------------------
+
+async def extract_json_payload(run_result:RunResult) -> str:
+    # Scan the agent’s outputs in reverse order until we find a JSON-like message from a tool call
+    for item in reversed(run_result.new_items):
+        if isinstance(item, ToolCallOutputItem) and item.output.strip().startswith("{"):
+            return item.output.strip()
+    # Fallback to an empty JSON object if nothing was found
+    return "{}"
+
+json_tool = spanish_agent.as_tool(
+    tool_name="get_data_json",
+    tool_description="Run the data agent and return only its JSON payload",
+    custom_output_extractor=extract_json_payload,
+)
 async def main():
     result = await Runner.run(
         starting_agent=orchestrator_agent,
-        input= "Say 'Hello, how are you?' in German.",
+        input= "Say 'Hello, how are you?' in Spanish.",
         run_config=run_config,
     )
 
